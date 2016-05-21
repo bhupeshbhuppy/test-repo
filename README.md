@@ -1,2 +1,2 @@
 # test-repo
-This is the first remo
+This is the first repo
