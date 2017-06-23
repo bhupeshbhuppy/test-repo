@@ -1,0 +1,201 @@
+---
+title: "Housing"
+author: "Bhupesh"
+date: "8 June 2017"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+
+
+
+
+```{r echo=FALSE,include=FALSE, warning=FALSE, error=FALSE, results='hide'}
+rm(list = ls())
+library(tseries)
+library(xts)
+library(dygraphs)
+library(forecast)
+library(urca)
+library(vars)
+library(strucchange)
+library(lmtest)
+library(TSA)
+library(plotly)
+```
+
+# 1. Housing Starts
+
+## Defination
+
+#### Housing starts is an economic indicator that reflects the number of privately owned new houses (technically housing units) on which construction has been started in a given period.
+
+The frequency for housing starts is quaterly. The data is from 1965 to 2015. We expect a structural break at somewhere 1992-93 therefore the data seems to spread sufficicantly across time for pre and post analysis.
+
+```{r echo=FALSE,include=FALSE, warning=FALSE, error=FALSE, results='hide'}
+HOUSTats <- read.csv("E:/Study/Dissertation/Data/Work/Additional/HOUSTats.csv")
+colnames(HOUSTats)<-c("Date", "Value")
+HOUSTats$year<-sapply(strsplit(as.character(HOUSTats[,1]),'-'), "[", 3)
+HOUSTats<-HOUSTats[-c(which(HOUSTats$year<1965 | HOUSTats$year>2015)),]
+HOUSTats<-xts(HOUSTats$Value,order.by = as.Date(HOUSTats$Date, format= "%d-%m-%Y"))
+
+```
+
+
+### Graph of Housing Starts
+
+This graph shows the time series of Housing Starts (to get the value hover over the graph)
+
+
+
+
+```{r echo=FALSE, warning=FALSE, error=FALSE}
+dygraph(HOUSTats)
+
+```
+
+
+
+
+We now check the weather the series is stationary or not. We Plot the ACF and PACF of the data
+
+
+
+
+```{r echo=FALSE, warning=FALSE, error=FALSE}
+acf(coredata(HOUSTats))
+pacf(coredata(HOUSTats))
+```
+
+
+
+
+The series can be unit stationary process. We check it by ADF and PP test.
+
+
+
+
+```{r echo=FALSE}
+adf.test(HOUSTats)
+pp.test(HOUSTats)
+```
+
+
+
+The PP test shows it as a non-stationary whereas the ADF test shows the series as stationray.(Probably this is what sir was talking about that day.)
+
+
+
+#### Now we check for Structural break test in the series. For this we use Bai & Perron (http://onlinelibrary.wiley.com/doi/10.1002/jae.659/full) to calculate multiple structural breaks in the  series. We structural break at these points
+
+
+
+
+```{r echo=FALSE}
+brk_pt<-breakpoints(HOUSTats ~ 1)
+rownames(data.frame(HOUSTats[brk_pt$breakpoints]))
+```
+
+
+
+
+Since the structural break in the series does not consides with our expected break we will probably not use this series for now. 
+
+The mismatch in break can also be because of the lag in the impact of housing regulation on Housing Starts
+
+
+
+
+
+# 2. Private fixed investment in structures: Residential: Manufactured homes
+
+## Defination
+
+##### Private fixed investment (PFI) measures spending by private businesses, nonprofit institutions, and households on fixed assets in the U.S. economy. Fixed assets consist of structures, equipment, and software that are used in the production of goods and services. PFI encompasses the creation of new productive assets, the improvement of existing assets, and the replacement of worn out or obsolete assets.
+
+##### Our data includes only Structures that too just Residential houses i.e. the sector targeted by the US congress. For structures, the benchmark I-O estimates are primarily based on detailed value-put-in-place data from the Census Bureau’s monthly survey of construction spending. The “value of construction put in place” is defined as the value of construction installed or erected at the construction site during a given period, regardless of when the work on the project was started or completed, when the structure was sold or delivered, or when payment for the structure was made. Residential structures consists of new construction of permanent-site single-family and multifamily housing units.
+
+
+
+The Frequency of our data is annual.The data is from 1965 to 2015. We expect a structural break at somewhere 1992-93 therefore the data seems to spread sufficicantly across time for pre and post analysis.
+
+
+
+
+```{r echo=FALSE}
+private_home_investment <- read.csv("E:/Study/Dissertation/Data/Work/Additional/private_home_investment.csv")
+colnames(private_home_investment)<-c("Date", "Value")
+private_home_investment$year<-sapply(strsplit(as.character(private_home_investment[,1]),'-'), "[", 3)
+private_home_investment<-private_home_investment[-c(which(private_home_investment$year<1965 | private_home_investment$year>2015)),]
+private_home_investment<-xts(private_home_investment$Value,order.by = as.Date(private_home_investment$Date, format= "%d-%m-%Y"))
+
+```
+
+
+## Graph for Private fixed investment in structures: Residential
+
+This graph shows the time series of Private fixed investment in structures: Residential: Manufactured homes (to get the value hover over the graph)
+
+```{r echo=FALSE, warning=FALSE, error=FALSE}
+dygraph(private_home_investment)
+
+```
+
+
+
+
+The series can be unit stationary process. We check it by ADF and PP test.
+
+
+
+
+```{r echo=FALSE}
+adf.test(private_home_investment)
+pp.test(private_home_investment)
+```
+
+
+
+
+The series is not stationay according to both PP test and ADF test.
+
+
+#### Now we check for Structural break test in the series. For this we use Bai & Perron (http://onlinelibrary.wiley.com/doi/10.1002/jae.659/full) to calculate multiple structural breaks in the  series. We structural break at these points
+
+
+
+
+```{r echo=FALSE}
+brk_pt<-breakpoints(private_home_investment ~ 1)
+rownames(data.frame(private_home_investment[brk_pt$breakpoints]))
+```
+
+
+Now we divide the data into two parts based on above result. To check if the series are individually stationary or not
+
+
+```{r echo=FALSE}
+pre_private_home_inv<-private_home_investment[1:which(rownames(data.frame(
+  private_home_investment))=="1993-01-01")]
+post_private_home_inv<-private_home_investment[(which(rownames(data.frame(
+  private_home_investment))=="1993-01-01")+1):length(private_home_investment)]
+
+adf.test(pre_private_home_inv)
+adf.test(post_private_home_inv)
+pp.test(pre_private_home_inv)
+pp.test(post_private_home_inv)
+
+```
+
+The series is unit stationary for both pre and post interventation period. This can also be because of the less aumunt of data (series being annual)
+
+```{r echo=FALSE}
+
+```
+
+
+
