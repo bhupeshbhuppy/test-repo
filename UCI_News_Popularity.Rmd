@@ -1,0 +1,580 @@
+---
+title: "Online News Popularity Data Set "
+author: "Bhupesh Joshi"
+output:
+  html_document:
+    theme: united
+    code_folding: hide
+    toc: yes
+    toc_float:
+      collapsed: yes
+      smooth_scroll: no
+  mainfont: arial
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE )
+```
+
+
+```{r echo=FALSE, results="asis"}
+cat("
+<style>
+#TOC {
+  margin: 150px 0px 20px 0px;
+}
+h1 {
+   color: #ff0000;
+   font-family: arial;
+ }
+h2 {
+   color: #ff0000;
+   font-family: arial;
+ }
+h3 {
+   color: #ff0000;
+   font-family: arial;
+}
+h4 {
+   color: #ff0000;
+   font-family: arial;
+}
+h5 {
+   color: #ff0000;
+   font-family: arial;
+}
+table.dataTable tbody tr.odd { background-color: red; border:1px #ff0000; }
+table.dataTable tbody tr.even { background-color: white; border:1px #ffffff;}
+
+
+</style>
+<style>
+body {
+text-align: justify}
+</style>
+")
+```
+
+```{r echo=TRUE,results='hide',fig.keep='all', warning=FALSE,message=FALSE,error=FALSE, include=FALSE}
+
+library(reshape2)
+library(ggplot2)
+library(plotly)
+library(ggcorrplot)
+sharing_data<-read.csv("D:/bhupesh/Bootcamp/BootCamp Assignment/OnlineNewsPopularity/OnlineNewsPopularity.csv")
+dummy_Features<-c("data_channel_is_lifestyle","data_channel_is_bus",
+                  "data_channel_is_socmed","data_channel_is_tech",
+                  "data_channel_is_world",
+                  "data_channel_is_entertainment","weekday_is_monday",
+                  "weekday_is_tuesday","weekday_is_wednesday",
+                  "weekday_is_thursday","weekday_is_friday",
+                  "weekday_is_saturday","weekday_is_sunday","is_weekend")
+conti_features<-colnames(sharing_data)[!(colnames(sharing_data) %in% dummy_Features)]
+conti_data<-sharing_data[,conti_features]
+conti_data<-conti_data[,-c(1:2)]
+dummy_data<-sharing_data[,dummy_Features]
+dummy_data$shares<-sharing_data$shares
+```
+
+## **1. Introduction**
+
+This growing popularity of online news has made the space very competative. From authors to websites to advertisers, every one wants to precit the popularity of an article before investing their resources to that article. This prediction is perticularly helpful for website as well as social media workers(authors, advertisers etc). The pricing model for advertiser can also take improve if a predictive is at place for the popularity of the article.
+
+The primary aim of the document is to provide an approach to develope an Intelligent Decision Support Systems (IDSS) that analyzes online news
+prior to their publication. We plan to do so by accurately predict the popularity of news prior to its publication. Popularity is often measured by considering the number of interactions in the Web and social networks (e.g., number of shares, likes and comments).
+
+## **2. Data Used**
+
+### **2.1 Data Collection **
+
+The dataset used is provided by UCI machine learning repository, originally acquired and preprocessed by K.Fernandes et al. It extracts 59 attributes
+(Predictors + Response) describing different aspects of each article, from a total of 39644 articles published in two years (January 7 2013 to January 7 2015) from Mashable website.
+
+### **2.2 Features **
+
+The data contains 58 predictive features and 1 target. The predictive features can be broadly classified into 7 categories. The division of these category is based on the pre-processing done by K.Fernandes et al.
+
+The categories of variables present are: 
+
+* Words : Number of words of the title/content;Average word length;Rate of unique/non-stop words of contents
+
+* Links:  Number of links;Number of links to other articles in Mashable
+
+* Digital Media: Number of images/videos
+
+* Publication Time: Day of the week/weekend
+
+* Keywords: Number of keywords;Worst/best/average keywords (#shares);Article category
+
+* Natural Languaage Processing: Closeness to five LDA topics;Title/Text polarity/subjectivity;Rate and polarity of positive/negative words;Absolute subjectivity/polarity level
+
+* Target: Number of shares at Mashable
+
+Each of these feature categories contain multiple feature they represent different items under that feature class.
+
+## **3. Explanatory Data Analysis (Data Discussion)**
+
+### **3.1	Feature Types**
+
+A primary data analysis was performed through visual inspection of the training data-set to identify the different types of variables among Continuous, Categorical (Nominal and Ordinal) and Dummy (Binary/Indicator) variables. This analysis helps us identify the choice of feature selection and reduction algorithms in the next stage of modelling.
+&nbsp;
+
+The data contains 45 continous features (including target) and 14 dummy variables. The dummy features are either from the time category or data channel category. There are no missing values in the data.
+
+### **3.2	Distribution of Target**
+
+The target is defined as the number of share an article recieves. It is a continous feature with high degree of right skewness. From the distribution presented below it is evident that the there are very less articles for very high number of shares.
+
+```{r echo=TRUE, warning=FALSE,message=FALSE,error=FALSE,fig.keep='all'}
+temp_melt<-melt(sharing_data[,"shares"])
+p<-ggplot(temp_melt,aes(value))+geom_density(alpha = 0.5)+ggtitle("Density Plots")
+ggplotly(p, height= 800, width = 1000)%>%
+  layout(plot_bgcolor="transparent",paper_bgcolor= "transparent")
+```
+
+The mean of the data is `r mean(sharing_data$shares)` where as the variance is `r sd(sharing_data$shares)^2`. The range for number of share an article recieves is `r range(sharing_data$shares)`.
+
+### **3.3 Continous Variable** {.tabset .tabset-fade }
+
+#### **Word Features** {.tabset .tabset-fade}
+
+There are 5 words features which denote the number and rate of words in title and the content.
+
+##### **Box Plots** 
+
+The box plots enable visualization of the data-set especially in relation to outliers. However considering the large number of data we will plot box plots category wise.
+
+```{r echo=TRUE, warning=FALSE,message=FALSE,error=FALSE,fig.keep='all'}
+word_Data<- conti_data[,c(1:5,10)]
+plot_ly( data=melt(word_Data), type = "box",
+            split = ~variable,y = ~value)%>%
+  layout( title = "Box-Plots of variables")
+```
+
+Accept "n_token_content" which tells us the Number of words in the content and "n_token_title" which tells us the Number of words in the title no other variable is well distributed in the entire range. However there is a single outlier present for each of the other variable. Removing that variable gives a good spread to the data. Before removing the observation we will analyse the density plot of word variable.
+
+##### **Density Plots**
+
+The density plots help visualize the characteristics of the distribution including statistical metrics such as mean, standard deviation and kurtosis. It also enables us to visually identify if any relationship exists with the response variable.
+
+```{r echo=TRUE, warning=FALSE,message=FALSE,error=FALSE,fig.keep='all'}
+
+plt<-htmltools::tagList()
+for (index in 1:length(colnames(word_Data))){
+  p<-ggplot(word_Data,aes(x= word_Data[,index], fill="blue"))+geom_density(alpha = 0.5)  +ggtitle(paste0("Density Plots of ",colnames(word_Data)[index]))
+  p<-ggplotly(p, height= 800, width = 1000)%>%
+    layout(plot_bgcolor="transparent",paper_bgcolor= "transparent")
+  plt[[index]] <- as_widget(p)
+  }
+plt
+
+```
+
+We can draw the same conclusion from the density plot as well.
+
+##### **Correlation Plots**
+
+```{r echo=TRUE, warning=FALSE,message=FALSE,error=FALSE,fig.keep='all'}
+
+#ggplotly(ggcorrplot(corr, method = "circle"))
+ggcorrplot(cor(conti_data[,c(1:5,10,45)]), method = "circle")
+```
+
+#### **Digital media Features** {.tabset .tabset-fade}
+
+There are 4 digital media features which denote the number of links, images or videos present in the article.
+
+##### **Box Plots** 
+
+The box plots enable visualization of the data-set especially in relation to outliers. However considering the large number of data we will plot box plots category wise.
+
+```{r echo=TRUE, warning=FALSE,message=FALSE,error=FALSE,fig.keep='all'}
+digital_media_features<-conti_data[6:9]
+plot_ly( data=melt(digital_media_features), type = "box",
+            split = ~variable,y = ~value)%>%
+  layout( title = "Box-Plots of variables")
+```
+
+The variables has some outlier but it is not as sevier as the words features.
+
+##### **Density Plots**
+
+The density plots help visualize the characteristics of the distribution including statistical metrics such as mean, standard deviation and kurtosis. It also enables us to visually identify if any relationship exists with the response variable.
+
+```{r echo=TRUE, warning=FALSE,message=FALSE,error=FALSE,fig.keep='all'}
+plt<-htmltools::tagList()
+# for (i in colnames(digital_media_features)){
+#   p<-ggplot(digital_media_features,aes(i, fill = "blue"))+geom_density(alpha = 0.5)+ggtitle(paste0("Density Plots of ",i))
+# ggplotly(p)%>%
+#   layout(plot_bgcolor="transparent",paper_bgcolor= "transparent")
+# plt[[index]] <- as_widget(p)
+# index <- index + 1
+# }
+
+for (index in 1:length(colnames(digital_media_features))){
+  p<-ggplot(digital_media_features,aes(x= digital_media_features[,index], fill="blue"))+geom_density(alpha = 0.5)  +ggtitle(paste0("Density Plots of ",colnames(digital_media_features)[index]))
+  p<-ggplotly(p, height= 800, width = 1000)%>%
+    layout(plot_bgcolor="transparent",paper_bgcolor= "transparent")
+  plt[[index]] <- as_widget(p)
+  }
+plt
+```
+
+We can draw the same conclusion from the density plot as well.
+
+
+##### **Correlation Plots**
+
+```{r echo=TRUE, warning=FALSE,message=FALSE,error=FALSE,fig.keep='all'}
+
+#ggplotly(ggcorrplot(corr, method = "circle"))
+ggcorrplot(cor(conti_data[,c(6:9,45)]), method = "circle")
+```
+
+
+#### **Keywords Features** {.tabset .tabset-fade}
+
+There are 4 digital media features which denote the number of links, images or videos present in the article.
+
+##### **Box Plots** 
+
+The box plots enable visualization of the data-set especially in relation to outliers. However considering the large number of data we will plot box plots category wise.
+
+```{r echo=TRUE, warning=FALSE,message=FALSE,error=FALSE,fig.keep='all'}
+keyword_features<-conti_data[11:20]
+plot_ly( data=melt(keyword_features), type = "box",
+            split = ~variable,y = ~value)%>%
+  layout( title = "Box-Plots of variables")
+```
+
+The variables has some outlier but it is not as sevier as the words features.
+
+##### **Density Plots**
+
+The density plots help visualize the characteristics of the distribution including statistical metrics such as mean, standard deviation and kurtosis. It also enables us to visually identify if any relationship exists with the response variable.
+
+```{r echo=TRUE, warning=FALSE,message=FALSE,error=FALSE,fig.keep='all'}
+plt<-htmltools::tagList()
+# for (i in colnames(digital_media_features)){
+#   p<-ggplot(digital_media_features,aes(i, fill = "blue"))+geom_density(alpha = 0.5)+ggtitle(paste0("Density Plots of ",i))
+# ggplotly(p)%>%
+#   layout(plot_bgcolor="transparent",paper_bgcolor= "transparent")
+# plt[[index]] <- as_widget(p)
+# index <- index + 1
+# }
+
+
+for (index in 1:length(colnames(keyword_features))){
+  p<-ggplot(keyword_features,aes(x= keyword_features[,index], fill="blue"))+geom_density(alpha = 0.5)  +ggtitle(paste0("Density Plots of ",colnames(keyword_features)[index]))
+  p<-ggplotly(p, height= 800, width = 1000)%>%
+    layout(plot_bgcolor="transparent",paper_bgcolor= "transparent")
+  plt[[index]] <- as_widget(p)
+  }
+plt
+```
+
+We can draw the same conclusion from the density plot as well.
+
+
+##### **Correlation Plots**
+
+```{r echo=TRUE, warning=FALSE,message=FALSE,error=FALSE,fig.keep='all'}
+
+#ggplotly(ggcorrplot(corr, method = "circle"))
+ggcorrplot(cor(conti_data[,c(11:20,45)]), method = "circle")
+```
+
+
+#### **Self Reference Features** {.tabset .tabset-fade}
+
+There are 3 self reference features which denote the min, max and average number of shares in a article.
+
+##### **Box Plots** 
+
+The box plots enable visualization of the data-set especially in relation to outliers. However considering the large number of data we will plot box plots category wise.
+
+```{r echo=TRUE, warning=FALSE,message=FALSE,error=FALSE,fig.keep='all'}
+self_ref<-conti_data[21:23]
+plot_ly( data=melt(self_ref), type = "box",
+         split = ~variable,y = ~value)%>%
+  layout( title = "Box-Plots of variables")
+```
+
+The variables has some outlier but it is not as sevier as the words features.
+
+##### **Density Plots**
+
+The density plots help visualize the characteristics of the distribution including statistical metrics such as mean, standard deviation and kurtosis. It also enables us to visually identify if any relationship exists with the response variable.
+
+```{r echo=TRUE, warning=FALSE,message=FALSE,error=FALSE,fig.keep='all'}
+plt<-htmltools::tagList()
+# for (i in colnames(digital_media_features)){
+#   p<-ggplot(digital_media_features,aes(i, fill = "blue"))+geom_density(alpha = 0.5)+ggtitle(paste0("Density Plots of ",i))
+# ggplotly(p)%>%
+#   layout(plot_bgcolor="transparent",paper_bgcolor= "transparent")
+# plt[[index]] <- as_widget(p)
+# index <- index + 1
+# }
+
+
+for (index in 1:length(colnames(self_ref))){
+  p<-ggplot(self_ref,aes(x= self_ref[,index], fill="blue"))+geom_density(alpha = 0.5)  +ggtitle(paste0("Density Plots of ",colnames(self_ref)[index]))
+  p<-ggplotly(p, height= 800, width = 1000)%>%
+    layout(plot_bgcolor="transparent",paper_bgcolor= "transparent")
+  plt[[index]] <- as_widget(p)
+  }
+plt
+```
+
+We can draw the same conclusion from the density plot as well.
+
+
+##### **Correlation Plots**
+
+```{r echo=TRUE, warning=FALSE,message=FALSE,error=FALSE,fig.keep='all'}
+
+#ggplotly(ggcorrplot(corr, method = "circle"))
+ggcorrplot(cor(conti_data[,c(21:23,45)]), method = "circle")
+```
+
+
+#### **NLP Features** {.tabset .tabset-fade}
+
+There are 21 NLP features which denote the Closeness to five LDA topics;Title/Text polarity/subjectivity;Rate and polarity of positive/negative words;Absolute subjectivity/polarity level etc.
+
+##### **Box Plots** 
+
+The box plots enable visualization of the data-set especially in relation to outliers. However considering the large number of data we will plot box plots category wise.
+
+```{r echo=TRUE, warning=FALSE,message=FALSE,error=FALSE,fig.keep='all'}
+NLP_Feature_1<-conti_data[24:28]
+plot_ly( data=melt(NLP_Feature_1), type = "box",
+         split = ~variable,y = ~value)%>%
+  layout( title = "Box-Plots of variables")
+```
+
+```{r echo=TRUE, warning=FALSE,message=FALSE,error=FALSE,fig.keep='all'}
+NLP_Feature_2<-conti_data[29:33]
+plot_ly( data=melt(NLP_Feature_1), type = "box",
+         split = ~variable,y = ~value)%>%
+  layout( title = "Box-Plots of variables")
+```
+
+```{r echo=TRUE, warning=FALSE,message=FALSE,error=FALSE,fig.keep='all'}
+NLP_Feature_3<-conti_data[34:38]
+plot_ly( data=melt(NLP_Feature_1), type = "box",
+         split = ~variable,y = ~value)%>%
+  layout( title = "Box-Plots of variables")
+```
+
+```{r echo=TRUE, warning=FALSE,message=FALSE,error=FALSE,fig.keep='all'}
+NLP_Feature_4<-conti_data[39:44]
+plot_ly( data=melt(NLP_Feature_1), type = "box",
+         split = ~variable,y = ~value)%>%
+  layout( title = "Box-Plots of variables")
+```
+
+The features are well distributed.
+
+##### **Density Plots**
+
+The density plots help visualize the characteristics of the distribution including statistical metrics such as mean, standard deviation and kurtosis. It also enables us to visually identify if any relationship exists with the response variable.
+
+```{r echo=TRUE, warning=FALSE,message=FALSE,error=FALSE,fig.keep='all'}
+index<-1
+plt<-htmltools::tagList()
+# for (i in colnames(digital_media_features)){
+#   p<-ggplot(digital_media_features,aes(i, fill = "blue"))+geom_density(alpha = 0.5)+ggtitle(paste0("Density Plots of ",i))
+# ggplotly(p)%>%
+#   layout(plot_bgcolor="transparent",paper_bgcolor= "transparent")
+# plt[[index]] <- as_widget(p)
+# index <- index + 1
+# }
+
+for (index in 1:length(colnames(NLP_Feature_1))){
+  p<-ggplot(NLP_Feature_1,aes(x= NLP_Feature_1[,index], fill="blue"))+geom_density(alpha = 0.5)  +ggtitle(paste0("Density Plots of ",colnames(NLP_Feature_1)[index]))
+  p<-ggplotly(p, height= 800, width = 1000)%>%
+    layout(plot_bgcolor="transparent",paper_bgcolor= "transparent")
+  plt[[index]] <- as_widget(p)
+  }
+plt
+
+```
+
+
+
+```{r echo=TRUE, warning=FALSE,message=FALSE,error=FALSE,fig.keep='all'}
+plt<-htmltools::tagList()
+# for (i in colnames(digital_media_features)){
+#   p<-ggplot(digital_media_features,aes(i, fill = "blue"))+geom_density(alpha = 0.5)+ggtitle(paste0("Density Plots of ",i))
+# ggplotly(p)%>%
+#   layout(plot_bgcolor="transparent",paper_bgcolor= "transparent")
+# plt[[index]] <- as_widget(p)
+# index <- index + 1
+# }
+
+
+for (index in 1:length(colnames(NLP_Feature_2))){
+  p<-ggplot(NLP_Feature_2,aes(x= NLP_Feature_2[,index], fill="blue"))+geom_density(alpha = 0.5)  +ggtitle(paste0("Density Plots of ",colnames(NLP_Feature_2)[index]))
+  p<-ggplotly(p, height= 800, width = 1000)%>%
+    layout(plot_bgcolor="transparent",paper_bgcolor= "transparent")
+  plt[[index]] <- as_widget(p)
+  }
+plt
+```
+
+```{r echo=TRUE, warning=FALSE,message=FALSE,error=FALSE,fig.keep='all'}
+plt<-htmltools::tagList()
+# for (i in colnames(digital_media_features)){
+#   p<-ggplot(digital_media_features,aes(i, fill = "blue"))+geom_density(alpha = 0.5)+ggtitle(paste0("Density Plots of ",i))
+# ggplotly(p)%>%
+#   layout(plot_bgcolor="transparent",paper_bgcolor= "transparent")
+# plt[[index]] <- as_widget(p)
+# index <- index + 1
+# }
+
+
+for (index in 1:length(colnames(NLP_Feature_3))){
+  p<-ggplot(NLP_Feature_1,aes(x= NLP_Feature_3[,index], fill="blue"))+geom_density(alpha = 0.5)  +ggtitle(paste0("Density Plots of ",colnames(NLP_Feature_3)[index]))
+  p<-ggplotly(p, height= 800, width = 1000)%>%
+    layout(plot_bgcolor="transparent",paper_bgcolor= "transparent")
+  plt[[index]] <- as_widget(p)
+  }
+plt
+```
+
+```{r echo=TRUE, warning=FALSE,message=FALSE,error=FALSE,fig.keep='all'}
+plt<-htmltools::tagList()
+# for (i in colnames(digital_media_features)){
+#   p<-ggplot(digital_media_features,aes(i, fill = "blue"))+geom_density(alpha = 0.5)+ggtitle(paste0("Density Plots of ",i))
+# ggplotly(p)%>%
+#   layout(plot_bgcolor="transparent",paper_bgcolor= "transparent")
+# plt[[index]] <- as_widget(p)
+# index <- index + 1
+# }
+
+
+for (index in 1:length(colnames(NLP_Feature_4))){
+  p<-ggplot(NLP_Feature_4,aes(x= NLP_Feature_4[,index], fill="blue"))+geom_density(alpha = 0.5)  +ggtitle(paste0("Density Plots of ",colnames(NLP_Feature_4)[index]))
+  p<-ggplotly(p, height= 800, width = 1000)%>%
+    layout(plot_bgcolor="transparent",paper_bgcolor= "transparent")
+  plt[[index]] <- as_widget(p)
+  }
+plt
+```
+
+##### **Correlation Plots**
+
+```{r echo=TRUE, warning=FALSE,message=FALSE,error=FALSE,fig.keep='all'}
+#ggplotly(ggcorrplot(corr, method = "circle"))
+ggcorrplot(cor(conti_data[,c(24:28,45)]), method = "circle")
+```
+
+```{r echo=TRUE, warning=FALSE,message=FALSE,error=FALSE,fig.keep='all'}
+
+#ggplotly(ggcorrplot(corr, method = "circle"))
+ggcorrplot(cor(conti_data[,c(29:45)]), method = "circle")
+```
+
+We can see that there is high degree of correlation between some variables.
+
+### **3.4 Discrete Features**
+
+The data contains two type of discrete features 
+
+* Data channel features
+
+* Time of Publication: These features defines the day of the publication of the article. 
+
+#### **3.4.1 Data Channel Features** {.tabset .tabset-fade }
+
+These features tells us the type of genre a particular kind of article belongs too. The listed genres are "lifestyle","bus","entertainment","socmed",
+"tech","viral" and "world"
+
+
+##### **Correlation Plots**{.tabset .tabset-fade }
+
+```{r echo=TRUE, warning=FALSE,message=FALSE,error=FALSE,fig.keep='all'}
+channel_features<-dummy_data[,c(1:6,15)]
+corr<-cor(channel_features)
+#ggplotly(ggcorrplot(corr, method = "circle"))
+ggcorrplot(corr, method = "circle")
+```
+
+There is very less correlation amongst the features and the response.
+
+##### **Distribution**
+
+```{r echo=TRUE, warning=FALSE,message=FALSE,error=FALSE,fig.keep='all'}
+channel_features<-dummy_data[,1:6]
+hist_var<-c()
+for(i in colnames(channel_features)){
+temp_var<-data.frame(table(channel_features[,i]))
+temp_var$Var2<-i
+hist_var<-rbind(hist_var,temp_var)
+}
+plot_ly(hist_var, x = ~Var2, y =~Freq , color = ~Var1)%>%
+  layout(title ="Distribution of data channel features")
+```
+
+#### **3.4.2 Publication Time Features**{.tabset .tabset-fade }
+
+These features tells us about the time of publication(the day) of the article. There is an additional variable to tell us weather it is a weekend or not.
+
+
+##### **Correlation Plots**{.tabset .tabset-fade }
+
+```{r echo=TRUE, warning=FALSE,message=FALSE,error=FALSE,fig.keep='all'}
+channel_features<-dummy_data[,7:15]
+corr<-cor(channel_features)
+#ggplotly(ggcorrplot(corr, method = "circle"))
+ggcorrplot(corr, method = "circle")
+```
+
+We can see that there is high degree of correlation between is_weekend and features telling the day as saturday or sunday.
+
+##### **Distribution**
+
+```{r echo=TRUE, warning=FALSE,message=FALSE,error=FALSE,fig.keep='all'}
+channel_features<-dummy_data[,7:14]
+hist_var<-c()
+for(i in colnames(channel_features)){
+temp_var<-data.frame(table(channel_features[,i]))
+temp_var$Var2<-i
+hist_var<-rbind(hist_var,temp_var)
+}
+plot_ly(hist_var, x = ~Var2, y =~Freq , color = ~Var1)%>%
+  layout(title ="Distribution of time of publication features")
+```
+
+## **4. Data Assumption**
+
+From exploring the data above we are clear that the data is very much skewed. The variance of data is very high when compared to the mean. Since this data is the count of number of shares of an article these characterstics are associated with it. 
+
+### **Features Extraced**
+
+For some of the variable like kw_min_min which tells us the minimum shares of worst keywords the value is -1 which does not makes intutive sense. We can change the value to 0 (which means no shares) and proceed with the analysis.
+
+We can observe very high correlation amongst some of the variables.
+
+It is observed that some of the continous variable can be binned into intervals because they have high concentration of variables at some observation points.
+
+1. n_token_title is divided into 13 bins.
+2. average_token_length into 13 bins.
+3. num_videos into 5 bins.
+4. num_keywords into 7 bins.
+5. kw_min_min into 2 bins. 
+6. kw_max_max into 4 bins.
+
+We further normalize all the continous features to convert their range between 0 and 1. We use linear normalization for this purpose which is defined as:
+
+$$
+x_norm = (x - min(x))/(max(x)- min(x)
+$$
+
+We further divide the dataset randomly into two parts in a ratio of 70:30. The 70% of the data is use for training the model and rest 30% for testing the performance of the model.
+
+## Metholodgy
+
+We use Extreme Gradient Boosting (XGBoost) Algorithm to train our model. 
+
